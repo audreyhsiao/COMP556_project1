@@ -20,7 +20,6 @@ int main(int argc, char** argv) {
   // The size in bytes of each message to send
   unsigned short sock;
   // The number of message exchanges to perform
-  unsigned short count;
 
   /* variables for identifying the server */
   unsigned int server_addr; // ip for the server
@@ -31,6 +30,7 @@ int main(int argc, char** argv) {
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_INET; /* indicates we want IPv4 */
 
+  // get the IP address
   if (getaddrinfo(argv[1], NULL, &hints, &getaddrinfo_result) == 0) {
     server_addr = (unsigned int) ((struct sockaddr_in *) (getaddrinfo_result->ai_addr))->sin_addr.s_addr;
     freeaddrinfo(getaddrinfo_result);
@@ -74,7 +74,8 @@ int main(int argc, char** argv) {
     }
 
   /* fill in the server's address */
-  memset (&sin, 0, sizeof (sin));
+  
+  memset (&sin, 0, sizeof (sin)); // set to all zeros
   sin.sin_family = AF_INET;
   sin.sin_addr.s_addr = server_addr;
   sin.sin_port = htons(server_port);
@@ -114,7 +115,9 @@ int main(int argc, char** argv) {
     }
 
   while (1){ 
-    printf("\nEnter the type of the number to send (options are char, short, int, or bye to quit): ");
+    
+    printf("\nEnter the message ");
+    //TODO change the way client process input(from num to string?)
     fgets(buffer, size, stdin);
     if (strncmp(buffer, "bye", 3) == 0) {
       /* free the resources, generally important! */
@@ -157,7 +160,11 @@ int main(int argc, char** argv) {
     default:
       break;
     }
+    //TODO add timestamp by gettimeofday()
     send(sock, sendbuffer, sendbuffer[0]+1, 0);
+
+    //TODO receive the pong message back
+    //TODO count the latency time and print it out
   }
 
   return 0;
