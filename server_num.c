@@ -72,6 +72,7 @@ int main(int argc, char **argv) {
 
   /* server socket address variables */
   struct sockaddr_in sin, addr;
+  // The port on which the server should run (on CLEAR, the usable range is 18000 <= port <= 18200).
   unsigned short server_port = atoi(argv[1]);
 
   /* socket address variables for a connected client */

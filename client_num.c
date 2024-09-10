@@ -14,10 +14,16 @@
 int main(int argc, char** argv) {
 
   /* our client socket */
-  int sock;
+  char* hostname;
+  // The port on which the server is running (on CLEAR, the usable range is 18000 <= port <= 18200)
+  short port;
+  // The size in bytes of each message to send
+  unsigned short sock;
+  // The number of message exchanges to perform
+  unsigned short count;
 
   /* variables for identifying the server */
-  unsigned int server_addr;
+  unsigned int server_addr; // ip for the server
   struct sockaddr_in sin;
   struct addrinfo *getaddrinfo_result, hints;
 
