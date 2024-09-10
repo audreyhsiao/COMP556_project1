@@ -1,1 +1,6 @@
-# COMP556_project1
+# Ping-Pong Client/Server
+
+## Run this project
+To run this project, you have to run ''make'' 
+
+## Measurement 
