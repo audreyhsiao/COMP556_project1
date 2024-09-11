@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <sys/time.h>  // For gettimeofday()
 
 /* simple client, takes two parameters, the server domain name,
    and the server port number */
@@ -20,6 +21,9 @@ int main(int argc, char** argv) {
   // The size in bytes of each message to send
   unsigned short sock;
   // The number of message exchanges to perform
+
+  struct timeval start, end;
+  long long msg_start_time, msg_end_time;
 
   /* variables for identifying the server */
   unsigned int server_addr; // ip for the server
@@ -116,7 +120,7 @@ int main(int argc, char** argv) {
 
   while (1){ 
     
-    printf("\nEnter the message ");
+    printf("\nEnter the message to send(or type 'bye' to quit)");
     //TODO change the way client process input(from num to string?)
     fgets(buffer, size, stdin);
     if (strncmp(buffer, "bye", 3) == 0) {
@@ -126,6 +130,12 @@ int main(int argc, char** argv) {
       free(sendbuffer);
       return 0;
     }
+
+    if(send(sock, sendbuffer,strlen(buffer)))
+
+    // Get current time after receiving the message
+      gettimeofday(&end, NULL);
+      msg_end_time = end.tv_sec * 1000 + end.tv_usec / 1000;  // Convert to milliseconds
 
     /* first byte of the sendbuffer is used to describe the number of
        bytes used to encode a number, the number value follows the first 
