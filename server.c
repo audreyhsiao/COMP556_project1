@@ -67,7 +67,7 @@ void add(struct node *head, int socket, struct sockaddr_in addr)
     new_node->pending_data_out = 0;
     new_node->bytes_sent = 0;
     new_node->pending_data_in = 0;
-    sprintf(new_node->file_path, "%d", socket);
+    sprintf(new_node->file_path, "client:%d", socket);
     new_node->next = head->next;
     head->next = new_node;
 }
@@ -100,13 +100,10 @@ int main(int argc, char **argv)
     int select_retval;
 
     /* a silly message */
-    char *message = "Welcome! COMP/ELEC 429 Students!\n";
+    char *message = "Hello!\n";
 
     /* number of bytes sent/received */
     int count;
-
-    /* numeric value received */
-    int num;
 
     /* linked list for keeping track of connected sockets */
     struct node head;
@@ -114,7 +111,7 @@ int main(int argc, char **argv)
 
     /* a buffer to read data */
     char *buf;
-    int BUF_LEN = 1000;
+    uint16_t BUF_LEN = 1000;
 
     buf = (char *)malloc(BUF_LEN);
 
@@ -286,11 +283,11 @@ int main(int argc, char **argv)
                         {
                             size_read = current->pending_data_out;
                         }
-                        memset(buf, size_read, 2);
+                        memset(buf, htons(size_read), 2);
                         struct timeval send_time;
                         gettimeofday(&send_time, NULL);
-                        memset(buf + 2, send_time.tv_sec, 8);
-                        memset(buf + 10, send_time.tv_usec, 8);
+                        memset(buf + 2, htobe64(send_time.tv_sec), 8);
+                        memset(buf + 10, htobe64(send_time.tv_usec), 8);
                         int sz = read(fd, buf + 18, size_read);
                         if (close(fd) < 0)
                         {
@@ -299,6 +296,10 @@ int main(int argc, char **argv)
                         }
                         count = send(current->socket, buf, size_read + 18, MSG_DONTWAIT);
                         assert(count == size_read + 18);
+                        printf("Message sent:\n");
+                        printf("Size: %d\n", size_read);
+                        printf("Timestamp: %lu seconds, %lu microseconds\n", send_time.tv_sec, send_time.tv_usec);
+                        printf("Data Sent: %s\n", buf + 18);
                         current->bytes_sent += size_read;
                     }
                     else
@@ -373,6 +374,7 @@ int main(int argc, char **argv)
                         }
 
                         /* connection is closed, clean up */
+                        remove(current->file_path);
                         close(current->socket);
                         dump(&head, current->socket);
                     }
@@ -383,7 +385,7 @@ int main(int argc, char **argv)
                         // recv_time.tv_sec;
                         // recv_time.tvusec;
 
-                        int fd = open(current->file_path, O_CREAT | O_WRONLY | O_APPEND);
+                        int fd = open(current->file_path, O_CREAT | O_WRONLY | O_APPEND, 0777);
 
                         if (current->pending_data_in > 0)
                         {
@@ -408,7 +410,12 @@ int main(int argc, char **argv)
                             // convert network byte order to host byte order? not sure if needed
                             unsigned short size = ntohs(*(unsigned short *)buf);
                             // timestamp
-                            long timeStamp = ntohl(*(long *)(buf + 2));
+                            uint64_t tv_sec = be64toh(*(uint64_t *)(buf + 2));
+                            uint64_t tv_usec = be64toh(*(uint64_t *)(buf + 10));
+                            printf("Received message:\n");
+                            printf("Size: %d\n", size);
+                            printf("Timestamp: %lu seconds, %lu microseconds\n", tv_sec, tv_usec);
+                            printf("Data Received: %s\n", buf + 18);
                             if (size > BUF_LEN - 18)
                             {
                                 write(fd, buf + 18, BUF_LEN - 18);
