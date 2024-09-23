@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <assert.h>
 
 /**************************************************/
 /* a few simple linked list functions             */
