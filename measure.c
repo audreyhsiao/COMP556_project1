@@ -9,7 +9,6 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 
-#define PORT 8080
 #define DATA_SIZE  500 //(1024 * 1024) // 1MB
 #define NUM_MESSAGES 100
 
@@ -74,7 +73,6 @@ int main(int argc, char** argv) {
 
     // for the bandwidth and latency measurement 
     double total_bandwidth_independent_time = 0.0;
-
     
     for(int i = 0; i < NUMS_MESSAGE; i++){
         struct timeval sent, receive;
