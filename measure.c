@@ -111,7 +111,9 @@ int main(int argc, char** argv) {
 
         // calculate the avg
         printf("Average Bandwidth independent transmission time: %f seconds\n", total_bandwidth_independent_time / NUM_MESSAGES);
-
+	free(data);
+    	close(sock);
+    	
         return 0;
     }
 }
