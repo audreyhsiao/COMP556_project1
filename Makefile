@@ -19,3 +19,4 @@ clean:
 	rm -f core.*
 	rm -f server
 	rm -f client
+	rm -f timeRecord.txt

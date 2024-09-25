@@ -22,7 +22,6 @@ struct node
     int socket;
     struct sockaddr_in client_addr;
     int pending_data_out;
-    int bytes_sent;
     /* you will need to introduce some variables here to record
        all the information regarding this socket.
        e.g. what data needs to be sent next */
@@ -65,7 +64,6 @@ void add(struct node *head, int socket, struct sockaddr_in addr)
     new_node->socket = socket;
     new_node->client_addr = addr;
     new_node->pending_data_out = 0;
-    new_node->bytes_sent = 0;
     new_node->pending_data_in = 0;
     sprintf(new_node->file_path, "client:%d", socket);
     new_node->next = head->next;
@@ -111,7 +109,7 @@ int main(int argc, char **argv)
 
     /* a buffer to read data */
     char *buf;
-    uint16_t BUF_LEN = 1000;
+    uint16_t BUF_LEN = 65535;
 
     buf = (char *)malloc(BUF_LEN);
 
@@ -268,66 +266,32 @@ int main(int argc, char **argv)
                         perror("File doesn't exist");
                         exit(1);
                     }
-                    lseek(fd, current->bytes_sent, SEEK_SET);
-                    unsigned short size_read;
+                    unsigned short size_read = current->pending_data_out;
+                    // memset(buf, htons(size_read), 2);
+                    memcpy(buf, &((uint16_t){htons(size_read)}), sizeof(uint16_t));
+                    struct timeval send_time;
+                    gettimeofday(&send_time, NULL);
+                    // memset(buf + 2, htobe64(send_time.tv_sec), 8);
+                    // memset(buf + 10, htobe64(send_time.tv_usec), 8);
+                    memcpy(buf + 2, &((uint64_t){htobe64(send_time.tv_sec)}), sizeof(uint64_t));
+                    memcpy(buf + 10, &((uint64_t){htobe64(send_time.tv_usec)}), sizeof(uint64_t));
 
-                    if (current->bytes_sent == 0)
+                    int sz = read(fd, buf + 18, size_read);
+                    if (sz != size_read)
                     {
-                        // first time sending, create header
-                        if (current->pending_data_out > BUF_LEN - 18)
-                        {
-                            // we have more to send, fill the whole buffer
-                            size_read = BUF_LEN - 18;
-                        }
-                        else
-                        {
-                            size_read = current->pending_data_out;
-                        }
-                        // memset(buf, htons(size_read), 2);
-                        memcpy(buf, &((uint16_t){htons(size_read)}), sizeof(uint16_t));
-                        struct timeval send_time;
-                        gettimeofday(&send_time, NULL);
-                        // memset(buf + 2, htobe64(send_time.tv_sec), 8);
-                        // memset(buf + 10, htobe64(send_time.tv_usec), 8);
-                        memcpy(buf + 2, &((uint64_t){htobe64(send_time.tv_sec)}), sizeof(uint64_t));
-                        memcpy(buf + 10, &((uint64_t){htobe64(send_time.tv_usec)}), sizeof(uint64_t));
+                        perror("Something wrong reading our data file");
+                    }
+                    if (close(fd) < 0)
+                    {
+                        perror("Error closing file");
+                        exit(1);
+                    }
 
-                        int sz = read(fd, buf + 18, size_read);
-                        if (close(fd) < 0)
-                        {
-                            perror("Error closing file");
-                            exit(1);
-                        }
-                        count = send(current->socket, buf, size_read + 18, MSG_DONTWAIT);
-                        assert(count == size_read + 18);
-                        printf("Message sent:\n");
-                        printf("Size: %d\n", size_read);
-                        printf("Timestamp: %lu seconds, %lu microseconds\n", send_time.tv_sec, send_time.tv_usec);
-                        printf("Data Sent: %s\n", buf + 18);
-                        current->bytes_sent += size_read;
-                    }
-                    else
-                    {
-                        // we have sent the header already, now just data
-                        if (current->pending_data_out - current->bytes_sent > BUF_LEN)
-                        {
-                            // we still have more to send, this time fill the whole buffer
-                            size_read = BUF_LEN;
-                        }
-                        else
-                        {
-                            size_read = current->pending_data_out - current->bytes_sent;
-                        }
-                        int sz = read(fd, buf, size_read);
-                        if (close(fd) < 0)
-                        {
-                            perror("Error closing file");
-                            exit(1);
-                        }
-                        count = send(current->socket, buf, size_read, MSG_DONTWAIT);
-                        assert(count == size_read);
-                        current->bytes_sent += count;
-                    }
+                    count = send(current->socket, buf, size_read + 18, MSG_DONTWAIT);
+                    printf("Message sent:\n");
+                    printf("Size: %d\n", size_read);
+                    printf("Timestamp: %lu seconds, %lu microseconds\n", send_time.tv_sec, send_time.tv_usec);
+                    printf("Data Sent: %s\n", buf + 18);
                     // reset buffer
                     memset(buf, 0, BUF_LEN);
                     if (count < 0)
@@ -352,10 +316,10 @@ int main(int argc, char **argv)
                             no error. send() may send only a portion of the buffer
                             to be sent.
                         */
-                        if (current->bytes_sent == current->pending_data_out)
+                        if (count == size_read + 18)
                         {
                             current->pending_data_out = 0;
-                            current->bytes_sent = 0;
+                            remove(current->file_path);
                         }
                     }
                 }
@@ -386,17 +350,15 @@ int main(int argc, char **argv)
                     {
                         struct timeval recv_time;
                         gettimeofday(&recv_time, NULL);
-                        // recv_time.tv_sec;
-                        // recv_time.tvusec;
 
                         int fd = open(current->file_path, O_CREAT | O_WRONLY | O_APPEND, 0777);
 
                         if (current->pending_data_in > 0)
                         {
-                            if (current->pending_data_in > BUF_LEN)
+                            if (current->pending_data_in > count)
                             {
-                                write(fd, buf, BUF_LEN);
-                                current->pending_data_in -= BUF_LEN;
+                                write(fd, buf, count);
+                                current->pending_data_in -= count;
                             }
                             else
                             {
@@ -416,14 +378,24 @@ int main(int argc, char **argv)
                             // timestamp
                             uint64_t tv_sec = be64toh(*(uint64_t *)(buf + 2));
                             uint64_t tv_usec = be64toh(*(uint64_t *)(buf + 10));
+
+                            // record receive time
+                            FILE *fp;
+                            fp = fopen("timeRecord.txt", "ab");
+                            fprintf(fp, "%lu, %lu\n", recv_time.tv_sec, recv_time.tv_usec);
+                            // and client send time
+                            // recv_time - client_send_time = 2 * transmission delay + transmission independent delay
+                            fprintf(fp, "%lu, %lu\n", tv_sec, tv_usec);
+                            fclose(fp);
+
                             printf("Received message:\n");
                             printf("Size: %d\n", size);
                             printf("Timestamp: %lu seconds, %lu microseconds\n", tv_sec, tv_usec);
                             printf("Data Received: %s\n", buf + 18);
-                            if (size > BUF_LEN - 18)
+                            if (size > count - 18)
                             {
-                                write(fd, buf + 18, BUF_LEN - 18);
-                                current->pending_data_in = size - (BUF_LEN - 18);
+                                write(fd, buf + 18, count - 18);
+                                current->pending_data_in = size - (count - 18);
                             }
                             else
                             {

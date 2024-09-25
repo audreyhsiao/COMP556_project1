@@ -127,13 +127,12 @@ int main(int argc, char *argv[])
 
     // Fill the message buffer once (outside the loop)
     // 1. Set the size field (2 bytes) at message[0] and message[1]
-    //memset(message, htons((uint16_t)data_len), sizeof(uint16_t));
+    // memset(message, htons((uint16_t)data_len), sizeof(uint16_t));
     memcpy(message, &((uint16_t){htons(data_len)}), sizeof(uint16_t));
 
     // 2. Set the timestamp (tv_sec and tv_usec) in network byte order at message[2] - message[17]
     // TODO: Reset timestamp at every send
     // already move timestamp assignment (inside the loop)
-
 
     // 3. Copy the user input data into the data portion starting at message[18]
     memcpy(message + 18, input_data, data_len); // Copy the input data
@@ -166,7 +165,8 @@ int main(int argc, char *argv[])
 
         // Receive the response
         buf = (char *)malloc(total_size);
-        if (buf == NULL) {
+        if (buf == NULL)
+        {
             perror("Failed to allocate memory for the received buffer");
             exit(1);
         }
