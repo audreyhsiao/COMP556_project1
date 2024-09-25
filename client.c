@@ -7,30 +7,6 @@
 
 #include <sys/time.h>
 
-// #define MAX_DATA_SIZE 1024
-// struct ppmsg {
-//     uint16_t size;         // 2 bytes (total size)
-//     struct timeval tv;     // 8 bytes for tv_sec + 8 bytes for tv_usec
-//     char data[MAX_DATA_SIZE]; // Arbitrary data
-// };
-//
-// // Function to construct the message
-// void create_ppmsg(struct ppmsg *msg, const char *data) {
-//     // Get the current time
-//     gettimeofday(&(msg->tv), NULL);
-//
-//     // Copy the data into the message
-//     strncpy(msg->data, data, MAX_DATA_SIZE);
-//
-//     // Set the size field
-//     // Size = size of tv_sec + tv_usec + size of data
-//     msg->size = htons(sizeof(msg->tv) + strlen(data));
-//
-//     // Convert timestamp to network byte order
-//     msg->tv.tv_sec = htonl(msg->tv.tv_sec);
-//     msg->tv.tv_usec = htonl(msg->tv.tv_usec);
-// }
-
 int main(int argc, char *argv[])
 {
     if (argc != 5)
@@ -119,9 +95,8 @@ int main(int argc, char *argv[])
     }
 
     // forming messages:
-    // Calculate the total size of the message (size (2 bytes) + timestamp (16 bytes) + data)
-    int data_len = size;                // Example data length
-    int total_size = 2 + 16 + data_len; // Size field (2 bytes) + timestamps (16 bytes) + data
+    int total_size = size;
+    int data_len = size - 18;
 
     char *input_data = (char *)malloc(data_len);
     if (input_data == NULL)
@@ -152,15 +127,13 @@ int main(int argc, char *argv[])
 
     // Fill the message buffer once (outside the loop)
     // 1. Set the size field (2 bytes) at message[0] and message[1]
-    memset(message, htons(data_len), sizeof(uint16_t));
+    //memset(message, htons((uint16_t)data_len), sizeof(uint16_t));
+    memcpy(message, &((uint16_t){htons(data_len)}), sizeof(uint16_t));
 
     // 2. Set the timestamp (tv_sec and tv_usec) in network byte order at message[2] - message[17]
     // TODO: Reset timestamp at every send
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
+    // already move timestamp assignment (inside the loop)
 
-    memset(message + 2, htobe64(tv.tv_sec), 8);   // Copy tv_sec at offset 2
-    memset(message + 10, htobe64(tv.tv_usec), 8); // Copy tv_usec at offset 6
 
     // 3. Copy the user input data into the data portion starting at message[18]
     memcpy(message + 18, input_data, data_len); // Copy the input data
@@ -168,6 +141,13 @@ int main(int argc, char *argv[])
     // Fill the message buffer with the appropriate format: size, timestamp, and data
     for (int i = 0; i < count; i++)
     {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+
+        // memset(message + 2, htobe64(tv.tv_sec), 8);   // Copy tv_sec at offset 2
+        // memset(message + 10, htobe64(tv.tv_usec), 8); // Copy tv_usec at offset 10
+        memcpy(message + 2, &((uint64_t){htobe64(tv.tv_sec)}), sizeof(uint64_t));
+        memcpy(message + 10, &((uint64_t){htobe64(tv.tv_usec)}), sizeof(uint64_t));
 
         // Send the message
         if (send(sock, message, total_size, 0) != total_size)
@@ -179,16 +159,23 @@ int main(int argc, char *argv[])
         }
 
         printf("Message sent:\n");
-        printf("Size: %d\n", data_len);
+        printf("Size: %d\n", total_size);
+        printf("Data Size: %d\n", data_len);
         printf("Timestamp: %lu seconds, %lu microseconds\n", tv.tv_sec, tv.tv_usec);
         printf("Data Sent: %s\n", message + 18);
 
         // Receive the response
+        buf = (char *)malloc(total_size);
+        if (buf == NULL) {
+            perror("Failed to allocate memory for the received buffer");
+            exit(1);
+        }
+
         int bytes_received = 0;
         while (bytes_received < total_size)
         {
             int received = recv(sock, buf + bytes_received, total_size - bytes_received, 0);
-            if (received < 0)
+            if (received <= 0)
             {
                 perror("Error receiving message");
                 close(sock);
@@ -209,5 +196,8 @@ int main(int argc, char *argv[])
         printf("Timestamp: %lu seconds, %lu microseconds\n", recv_tv_sec, recv_tv_usec);
         printf("Data: %s\n", buf + 18); // Print the data portion
         printf("Completed %d message exchanges with %s:%d\n", count, hostname, port);
+        free(buf);
     }
+
+    return 0;
 }

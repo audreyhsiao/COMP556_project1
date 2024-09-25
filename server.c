@@ -283,11 +283,15 @@ int main(int argc, char **argv)
                         {
                             size_read = current->pending_data_out;
                         }
-                        memset(buf, htons(size_read), 2);
+                        // memset(buf, htons(size_read), 2);
+                        memcpy(buf, &((uint16_t){htons(size_read)}), sizeof(uint16_t));
                         struct timeval send_time;
                         gettimeofday(&send_time, NULL);
-                        memset(buf + 2, htobe64(send_time.tv_sec), 8);
-                        memset(buf + 10, htobe64(send_time.tv_usec), 8);
+                        // memset(buf + 2, htobe64(send_time.tv_sec), 8);
+                        // memset(buf + 10, htobe64(send_time.tv_usec), 8);
+                        memcpy(buf + 2, &((uint64_t){htobe64(send_time.tv_sec)}), sizeof(uint64_t));
+                        memcpy(buf + 10, &((uint64_t){htobe64(send_time.tv_usec)}), sizeof(uint64_t));
+
                         int sz = read(fd, buf + 18, size_read);
                         if (close(fd) < 0)
                         {
