@@ -98,26 +98,7 @@ int main(int argc, char *argv[])
     int total_size = size;
     int data_len = size - 18;
 
-    char *input_data = (char *)malloc(data_len);
-    if (input_data == NULL)
-    {
-        perror("Error allocating memory for data input");
-        close(sock);
-        exit(1);
-    }
-
-    printf("Enter the ping-pong message: ");
-    fgets(input_data, data_len, stdin);
-    if (strncmp(input_data, "bye", 3) == 0)
-    {
-        /* free the resources, generally important! */
-        close(sock);
-        free(input_data);
-        return 0;
-    }
-
-    // Allocate buffer for the message
-    char *message = (char *)malloc(total_size);
+    char *message = (char *)calloc(total_size, sizeof(char));
     if (message == NULL)
     {
         perror("Error allocating memory for message");
@@ -135,7 +116,8 @@ int main(int argc, char *argv[])
     // already move timestamp assignment (inside the loop)
 
     // 3. Copy the user input data into the data portion starting at message[18]
-    memcpy(message + 18, input_data, data_len); // Copy the input data
+    // memcpy(message + 18, input_data, data_len); // Copy the input data
+    // no need to fill the message
 
     // Fill the message buffer with the appropriate format: size, timestamp, and data
     for (int i = 0; i < count; i++)
@@ -156,12 +138,12 @@ int main(int argc, char *argv[])
             free(message);
             exit(1);
         }
-
+        printf("-----------------------------------\n");
         printf("Message sent:\n");
-        printf("Size: %d\n", total_size);
-        printf("Data Size: %d\n", data_len);
+        printf("Total Size: %d\n", total_size);
+        printf("Size: %d\n", data_len);
         printf("Timestamp: %lu seconds, %lu microseconds\n", tv.tv_sec, tv.tv_usec);
-        printf("Data Sent: %s\n", message + 18);
+        printf("\n");
 
         // Receive the response
         buf = (char *)malloc(total_size);
@@ -171,11 +153,32 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
-        int bytes_received = 0;
-        while (bytes_received < total_size)
+        int received_bytes = 0;
+        int epoch = 1024; // Adjust chunk size as necessary
+
+        // Allocate a buffer for the incoming message
+        buf = (char *)malloc(total_size);
+        if (buf == NULL) {
+            perror("Failed to allocate memory for the received buffer");
+            close(sock);
+            free(message);
+            exit(1);
+        }
+
+        // receive multiple chunk messages
+        while (received_bytes < total_size)
         {
-            int received = recv(sock, buf + bytes_received, total_size - bytes_received, 0);
-            if (received <= 0)
+            int remain_bytes = total_size - received_bytes;  // Calculate remaining bytes to receive
+            int to_receive;
+            if (remain_bytes < epoch) {
+                to_receive = remain_bytes;
+            } else {
+                to_receive = epoch;
+            }
+
+            int received = recv(sock, buf + received_bytes, to_receive, 0);
+
+            if (received < 0)
             {
                 perror("Error receiving message");
                 close(sock);
@@ -183,7 +186,26 @@ int main(int argc, char *argv[])
                 free(buf);
                 exit(1);
             }
-            bytes_received += received;
+            else if (received == 0)
+            {
+                // Connection closed by the peer
+                printf("Connection closed by peer\n");
+                close(sock);
+                free(message);
+                free(buf);
+                exit(1);
+            }
+
+            received_bytes += received;  // Update total bytes received
+        }
+
+        // Ensure that the message is long enough for size and timestamp fields
+        if (received_bytes < 18) {
+            printf("Error: Incomplete message received\n");
+            close(sock);
+            free(message);
+            free(buf);
+            exit(1);
         }
 
         // Print the received size, timestamp, and data
@@ -194,8 +216,16 @@ int main(int argc, char *argv[])
         printf("Received message:\n");
         printf("Size: %d\n", recv_size);
         printf("Timestamp: %lu seconds, %lu microseconds\n", recv_tv_sec, recv_tv_usec);
-        printf("Data: %s\n", buf + 18); // Print the data portion
+
+        // Ensure the data size is consistent with what was received
+        if (recv_size > total_size - 18) {
+            printf("Error: Data size too big\n");
+            free(buf);
+            exit(1);
+        }
+
         printf("Completed %d message exchanges with %s:%d\n", count, hostname, port);
+        printf("\n");
         free(buf);
     }
 
