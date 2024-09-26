@@ -111,8 +111,6 @@ int main(int argc, char **argv)
     char *buf;
     uint16_t BUF_LEN = 65535;
 
-    buf = (char *)malloc(BUF_LEN);
-
     /* initialize dummy head node of linked list */
     head.socket = -1;
     head.next = 0;
@@ -150,6 +148,8 @@ int main(int argc, char **argv)
         perror("listen on socket failed");
         abort();
     }
+
+    buf = (char *)malloc(BUF_LEN);
 
     /* now we keep waiting for incoming connections,
        check for incoming data to receive,
@@ -211,6 +211,8 @@ int main(int argc, char **argv)
                 if (new_sock < 0)
                 {
                     perror("error accepting connection");
+                    free(message);
+                    free(buf);
                     abort();
                 }
 
@@ -223,6 +225,8 @@ int main(int argc, char **argv)
                 if (fcntl(new_sock, F_SETFL, O_NONBLOCK) < 0)
                 {
                     perror("making socket non-blocking");
+                    free(message);
+                    free(buf);
                     abort();
                 }
 
@@ -239,6 +243,8 @@ int main(int argc, char **argv)
                 if (count < 0)
                 {
                     perror("error sending message to client");
+                    free(message);
+                    free(buf);
                     abort();
                 }
             }
@@ -264,33 +270,30 @@ int main(int argc, char **argv)
                     if (fd < 0)
                     {
                         perror("File doesn't exist");
+                        free(message);
+                        free(buf);
                         exit(1);
                     }
                     unsigned short size_read = current->pending_data_out;
-                    // memset(buf, htons(size_read), 2);
-                    memcpy(buf, &((uint16_t){htons(size_read)}), sizeof(uint16_t));
 
-                    int sz = read(fd, buf + 18, size_read);
-                    if (sz != size_read)
+                    // load data into buffer to send
+                    if (read(fd, buf, size_read) != size_read)
                     {
                         perror("Something wrong reading our data file");
-                    }
-                    if (close(fd) < 0)
-                    {
-                        perror("Error closing file");
+                        free(message);
+                        free(buf);
                         exit(1);
                     }
 
-                    struct timeval send_time;
-                    gettimeofday(&send_time, NULL);
-                    memcpy(buf + 2, &((uint64_t){htobe64(send_time.tv_sec)}), sizeof(uint64_t));
-                    memcpy(buf + 10, &((uint64_t){htobe64(send_time.tv_usec)}), sizeof(uint64_t));
+                    if (close(fd) < 0)
+                    {
+                        perror("Error closing file");
+                        free(message);
+                        free(buf);
+                        exit(1);
+                    }
 
-                    count = send(current->socket, buf, size_read + 18, MSG_DONTWAIT);
-                    printf("Message sent!\n");
-                    printf("Size: %d\n", size_read + 18);
-                    printf("Timestamp: %lu seconds, %lu microseconds\n", send_time.tv_sec, send_time.tv_usec);
-                    printf("Data Sent: %s\n", buf + 18);
+                    count = send(current->socket, buf, size_read, MSG_DONTWAIT);
                     // reset buffer
                     memset(buf, 0, BUF_LEN);
                     if (count < 0)
@@ -315,12 +318,9 @@ int main(int argc, char **argv)
                             no error. send() may send only a portion of the buffer
                             to be sent.
                         */
-                        if (count == size_read + 18)
+                        if (count == size_read)
                         {
                             current->pending_data_out = 0;
-                            FILE *fp2 = fopen("ServerProcessTime.txt", "ab");
-                            fprintf(fp2, "%lu, %lu\n", send_time.tv_sec, send_time.tv_usec);
-                            fclose(fp2);
                             remove(current->file_path);
                         }
                     }
@@ -331,6 +331,8 @@ int main(int argc, char **argv)
                     /* we have data from a client */
 
                     count = recv(current->socket, buf, BUF_LEN, 0);
+                    struct timeval recv_time;
+                    gettimeofday(&recv_time, NULL);
                     if (count <= 0)
                     {
                         /* something is wrong */
@@ -350,9 +352,6 @@ int main(int argc, char **argv)
                     }
                     else
                     {
-                        struct timeval recv_time;
-                        gettimeofday(&recv_time, NULL);
-
                         int fd = open(current->file_path, O_CREAT | O_WRONLY | O_APPEND, 0777);
 
                         if (current->pending_data_in > 0)
@@ -367,6 +366,8 @@ int main(int argc, char **argv)
                                 write(fd, buf, current->pending_data_in);
                                 current->pending_data_in = 0;
                             }
+                            printf("Received part of message!\n");
+                            printf("Count: %d, pending_data: %d\n", count, current->pending_data_in);
                         }
                         else
                         {
@@ -381,39 +382,40 @@ int main(int argc, char **argv)
                             uint64_t tv_sec = be64toh(*(uint64_t *)(buf + 2));
                             uint64_t tv_usec = be64toh(*(uint64_t *)(buf + 10));
 
-                            // record receive time
-                            FILE *fp = fopen("IndependentDelay.txt", "ab");
-                            FILE *fp2 = fopen("ServerProcessTime.txt", "ab");
-                            fprintf(fp, "%lu, %lu\n", recv_time.tv_sec, recv_time.tv_usec);
-                            fprintf(fp2, "%lu, %lu\n", recv_time.tv_sec, recv_time.tv_usec);
-                            // and client send time
-                            // recv_time - client_send_time = 2 * transmission delay + transmission independent delay
-                            fprintf(fp, "%lu, %lu\n", tv_sec, tv_usec);
-                            fclose(fp);
-                            fclose(fp2);
-
-                            printf("Received message!\n");
-                            printf("Size: %d\n", count);
-                            printf("Timestamp: %lu seconds, %lu microseconds\n", tv_sec, tv_usec);
-                            printf("Data Received: %s\n", buf + 18);
                             if (size > count - 18)
                             {
-                                write(fd, buf + 18, count - 18);
+                                printf("Received part of message (HEAD)!\n");
+                                write(fd, buf, count);
                                 current->pending_data_in = size - (count - 18);
                             }
                             else
                             {
-                                write(fd, buf + 18, size);
+                                printf("Received whole message!\n");
+                                write(fd, buf, size + 18);
+
+                                // record receive time
+                                FILE *fp = fopen("Delay.txt", "ab");
+                                fprintf(fp, "%lu, %lu\n", recv_time.tv_sec, recv_time.tv_usec);
+                                // and client send time
+                                // recv_time - client_send_time = 2 * transmission delay + transmission independent delay
+                                fprintf(fp, "%lu, %lu\n", tv_sec, tv_usec);
+                                fprintf(fp, "%hu\n", count);
+                                fclose(fp);
                             }
-                            current->pending_data_out = size;
+                            current->pending_data_out = size + 18;
+
+                            printf("Count: %d, Data Size: %d, pending_data: %d\n", count, size, current->pending_data_in);
+                            printf("Timestamp: %lu seconds, %lu microseconds\n", tv_sec, tv_usec);
                         }
                         if (close(fd) < 0)
                         {
                             perror("Error closing file");
+                            free(message);
+                            free(buf);
                             exit(1);
                         }
                         // reset buffer
-                        memset(buf, 0, BUF_LEN);
+                        memset(buf, '\0', BUF_LEN);
                     }
                 }
             }

@@ -106,18 +106,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    // Fill the message buffer once (outside the loop)
-    // 1. Set the size field (2 bytes) at message[0] and message[1]
-    // memset(message, htons((uint16_t)data_len), sizeof(uint16_t));
     memcpy(message, &((uint16_t){htons(data_len)}), sizeof(uint16_t));
-
-    // 2. Set the timestamp (tv_sec and tv_usec) in network byte order at message[2] - message[17]
-    // TODO: Reset timestamp at every send
-    // already move timestamp assignment (inside the loop)
-
-    // 3. Copy the user input data into the data portion starting at message[18]
-    // memcpy(message + 18, input_data, data_len); // Copy the input data
-    // no need to fill the message
 
     int total_time;
     // Fill the message buffer with the appropriate format: size, timestamp, and data
@@ -131,8 +120,6 @@ int main(int argc, char *argv[])
 
         struct timeval tv;
         gettimeofday(&tv, NULL);
-        // memset(message + 2, htobe64(tv.tv_sec), 8);   // Copy tv_sec at offset 2
-        // memset(message + 10, htobe64(tv.tv_usec), 8); // Copy tv_usec at offset 10
         memcpy(message + 2, &((uint64_t){htobe64(tv.tv_sec)}), sizeof(uint64_t));
         memcpy(message + 10, &((uint64_t){htobe64(tv.tv_usec)}), sizeof(uint64_t));
         // Send the message
@@ -226,33 +213,22 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
-        // Print the received size, timestamp, and data
-        uint16_t recv_size = ntohs(*(uint16_t *)buf);             // Convert size back to host byte order
-        uint64_t recv_tv_sec = be64toh(*(uint64_t *)(buf + 2));   // Convert tv_sec back to host byte order
-        uint64_t recv_tv_usec = be64toh(*(uint64_t *)(buf + 10)); // Convert tv_usec back to host byte order
+        if (received_bytes != total_size || strncmp(buf, message, total_size) != 0)
+        {
+            perror("Data received does not match our data sent!\n");
+        }
 
         // printf("Received message!\n");
-        // printf("Size: %d\n", recv_size);
+        // printf("Size: %d\n", received_bytes);
         // printf("Timestamp: %lu seconds, %lu microseconds\n", recv_tv_sec, recv_tv_usec);
         // printf("Data Received: %s\n", buf + 18);
 
-        FILE *fp = fopen("RoundTripTime.txt", "ab");
-        if (fp == NULL)
-        {
-            perror("Error opening file");
-            return 1;
-        }
-
         total_time += (recv_time.tv_sec - tv.tv_sec) * 1000000 + (recv_time.tv_usec - tv.tv_usec);
-        fprintf(fp, "%lu, %lu\n", tv.tv_sec, tv.tv_usec);
-        fprintf(fp, "%lu, %lu\n", recv_time.tv_sec, recv_time.tv_usec);
-
-        fclose(fp);
         free(buf);
     }
 
     printf("Completed %d message exchanges with %s:%d\n", count, hostname, port);
-    printf("Average time: %d\n", total_time / count);
+    printf("Average time: %d microseconds\n", total_time / count);
     printf("\n");
     return 0;
 }
