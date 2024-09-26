@@ -19,4 +19,6 @@ clean:
 	rm -f core.*
 	rm -f server
 	rm -f client
-	rm -f timeRecord.txt
+	rm -f IndependentDelay.txt
+	rm -f RoundTripTime.txt
+	rm -f ServerProcessTime.txt

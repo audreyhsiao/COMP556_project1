@@ -123,19 +123,18 @@ int main(int argc, char *argv[])
     // Fill the message buffer with the appropriate format: size, timestamp, and data
     for (int i = 0; i < count; i++)
     {
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-
-        // memset(message + 2, htobe64(tv.tv_sec), 8);   // Copy tv_sec at offset 2
-        // memset(message + 10, htobe64(tv.tv_usec), 8); // Copy tv_usec at offset 10
-        memcpy(message + 2, &((uint64_t){htobe64(tv.tv_sec)}), sizeof(uint64_t));
-        memcpy(message + 10, &((uint64_t){htobe64(tv.tv_usec)}), sizeof(uint64_t));
 
         for (size_t i = 18; i < size; i++)
         {
             message[i] = rand();
         }
 
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        // memset(message + 2, htobe64(tv.tv_sec), 8);   // Copy tv_sec at offset 2
+        // memset(message + 10, htobe64(tv.tv_usec), 8); // Copy tv_usec at offset 10
+        memcpy(message + 2, &((uint64_t){htobe64(tv.tv_sec)}), sizeof(uint64_t));
+        memcpy(message + 10, &((uint64_t){htobe64(tv.tv_usec)}), sizeof(uint64_t));
         // Send the message
         if (send(sock, message, total_size, 0) != total_size)
         {
@@ -173,6 +172,8 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
+        struct timeval recv_time;
+        int record_time = 1;
         // receive multiple chunk messages
         while (received_bytes < total_size)
         {
@@ -188,6 +189,11 @@ int main(int argc, char *argv[])
             }
 
             int received = recv(sock, buf + received_bytes, to_receive, 0);
+            if (record_time == 1)
+            {
+                gettimeofday(&recv_time, NULL);
+            }
+            record_time = 0;
 
             if (received < 0)
             {
@@ -237,9 +243,9 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        total_time += (recv_tv_sec - tv.tv_sec) * 1000000 + (recv_tv_usec - tv.tv_usec);
+        total_time += (recv_time.tv_sec - tv.tv_sec) * 1000000 + (recv_time.tv_usec - tv.tv_usec);
         fprintf(fp, "%lu, %lu\n", tv.tv_sec, tv.tv_usec);
-        fprintf(fp, "%lu, %lu\n", recv_tv_sec, recv_tv_usec);
+        fprintf(fp, "%lu, %lu\n", recv_time.tv_sec, recv_time.tv_usec);
 
         fclose(fp);
         free(buf);

@@ -269,12 +269,6 @@ int main(int argc, char **argv)
                     unsigned short size_read = current->pending_data_out;
                     // memset(buf, htons(size_read), 2);
                     memcpy(buf, &((uint16_t){htons(size_read)}), sizeof(uint16_t));
-                    struct timeval send_time;
-                    gettimeofday(&send_time, NULL);
-                    // memset(buf + 2, htobe64(send_time.tv_sec), 8);
-                    // memset(buf + 10, htobe64(send_time.tv_usec), 8);
-                    memcpy(buf + 2, &((uint64_t){htobe64(send_time.tv_sec)}), sizeof(uint64_t));
-                    memcpy(buf + 10, &((uint64_t){htobe64(send_time.tv_usec)}), sizeof(uint64_t));
 
                     int sz = read(fd, buf + 18, size_read);
                     if (sz != size_read)
@@ -287,9 +281,14 @@ int main(int argc, char **argv)
                         exit(1);
                     }
 
+                    struct timeval send_time;
+                    gettimeofday(&send_time, NULL);
+                    memcpy(buf + 2, &((uint64_t){htobe64(send_time.tv_sec)}), sizeof(uint64_t));
+                    memcpy(buf + 10, &((uint64_t){htobe64(send_time.tv_usec)}), sizeof(uint64_t));
+
                     count = send(current->socket, buf, size_read + 18, MSG_DONTWAIT);
                     printf("Message sent!\n");
-                    printf("Size: %d\n", size_read);
+                    printf("Size: %d\n", size_read + 18);
                     printf("Timestamp: %lu seconds, %lu microseconds\n", send_time.tv_sec, send_time.tv_usec);
                     printf("Data Sent: %s\n", buf + 18);
                     // reset buffer
@@ -319,6 +318,9 @@ int main(int argc, char **argv)
                         if (count == size_read + 18)
                         {
                             current->pending_data_out = 0;
+                            FILE *fp2 = fopen("ServerProcessTime.txt", "ab");
+                            fprintf(fp2, "%lu, %lu\n", send_time.tv_sec, send_time.tv_usec);
+                            fclose(fp2);
                             remove(current->file_path);
                         }
                     }
@@ -380,13 +382,15 @@ int main(int argc, char **argv)
                             uint64_t tv_usec = be64toh(*(uint64_t *)(buf + 10));
 
                             // record receive time
-                            FILE *fp;
-                            fp = fopen("timeRecord.txt", "ab");
+                            FILE *fp = fopen("IndependentDelay.txt", "ab");
+                            FILE *fp2 = fopen("ServerProcessTime.txt", "ab");
                             fprintf(fp, "%lu, %lu\n", recv_time.tv_sec, recv_time.tv_usec);
+                            fprintf(fp2, "%lu, %lu\n", recv_time.tv_sec, recv_time.tv_usec);
                             // and client send time
                             // recv_time - client_send_time = 2 * transmission delay + transmission independent delay
                             fprintf(fp, "%lu, %lu\n", tv_sec, tv_usec);
                             fclose(fp);
+                            fclose(fp2);
 
                             printf("Received message!\n");
                             printf("Size: %d\n", count);
