@@ -288,7 +288,7 @@ int main(int argc, char **argv)
                     }
 
                     count = send(current->socket, buf, size_read + 18, MSG_DONTWAIT);
-                    printf("Message sent:\n");
+                    printf("Message sent!\n");
                     printf("Size: %d\n", size_read);
                     printf("Timestamp: %lu seconds, %lu microseconds\n", send_time.tv_sec, send_time.tv_usec);
                     printf("Data Sent: %s\n", buf + 18);
@@ -388,8 +388,8 @@ int main(int argc, char **argv)
                             fprintf(fp, "%lu, %lu\n", tv_sec, tv_usec);
                             fclose(fp);
 
-                            printf("Received message:\n");
-                            printf("Size: %d\n", size);
+                            printf("Received message!\n");
+                            printf("Size: %d\n", count);
                             printf("Timestamp: %lu seconds, %lu microseconds\n", tv_sec, tv_usec);
                             printf("Data Received: %s\n", buf + 18);
                             if (size > count - 18)

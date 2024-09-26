@@ -119,6 +119,7 @@ int main(int argc, char *argv[])
     // memcpy(message + 18, input_data, data_len); // Copy the input data
     // no need to fill the message
 
+    int total_time;
     // Fill the message buffer with the appropriate format: size, timestamp, and data
     for (int i = 0; i < count; i++)
     {
@@ -130,6 +131,11 @@ int main(int argc, char *argv[])
         memcpy(message + 2, &((uint64_t){htobe64(tv.tv_sec)}), sizeof(uint64_t));
         memcpy(message + 10, &((uint64_t){htobe64(tv.tv_usec)}), sizeof(uint64_t));
 
+        for (size_t i = 18; i < size; i++)
+        {
+            message[i] = rand();
+        }
+
         // Send the message
         if (send(sock, message, total_size, 0) != total_size)
         {
@@ -138,12 +144,13 @@ int main(int argc, char *argv[])
             free(message);
             exit(1);
         }
-        printf("-----------------------------------\n");
-        printf("Message sent:\n");
-        printf("Total Size: %d\n", total_size);
-        printf("Size: %d\n", data_len);
-        printf("Timestamp: %lu seconds, %lu microseconds\n", tv.tv_sec, tv.tv_usec);
-        printf("\n");
+        // printf("-----------------------------------\n");
+        // printf("Message sent!\n");
+        // printf("Total Size: %d\n", total_size);
+        // printf("Size: %d\n", data_len);
+        // printf("Timestamp: %lu seconds, %lu microseconds\n", tv.tv_sec, tv.tv_usec);
+        // printf("Data Sent: %s\n", message + 18);
+        // printf("\n");
 
         // Receive the response
         buf = (char *)malloc(total_size);
@@ -158,7 +165,8 @@ int main(int argc, char *argv[])
 
         // Allocate a buffer for the incoming message
         buf = (char *)malloc(total_size);
-        if (buf == NULL) {
+        if (buf == NULL)
+        {
             perror("Failed to allocate memory for the received buffer");
             close(sock);
             free(message);
@@ -168,11 +176,14 @@ int main(int argc, char *argv[])
         // receive multiple chunk messages
         while (received_bytes < total_size)
         {
-            int remain_bytes = total_size - received_bytes;  // Calculate remaining bytes to receive
+            int remain_bytes = total_size - received_bytes; // Calculate remaining bytes to receive
             int to_receive;
-            if (remain_bytes < epoch) {
+            if (remain_bytes < epoch)
+            {
                 to_receive = remain_bytes;
-            } else {
+            }
+            else
+            {
                 to_receive = epoch;
             }
 
@@ -196,11 +207,12 @@ int main(int argc, char *argv[])
                 exit(1);
             }
 
-            received_bytes += received;  // Update total bytes received
+            received_bytes += received; // Update total bytes received
         }
 
         // Ensure that the message is long enough for size and timestamp fields
-        if (received_bytes < 18) {
+        if (received_bytes < 18)
+        {
             printf("Error: Incomplete message received\n");
             close(sock);
             free(message);
@@ -213,21 +225,28 @@ int main(int argc, char *argv[])
         uint64_t recv_tv_sec = be64toh(*(uint64_t *)(buf + 2));   // Convert tv_sec back to host byte order
         uint64_t recv_tv_usec = be64toh(*(uint64_t *)(buf + 10)); // Convert tv_usec back to host byte order
 
-        printf("Received message:\n");
-        printf("Size: %d\n", recv_size);
-        printf("Timestamp: %lu seconds, %lu microseconds\n", recv_tv_sec, recv_tv_usec);
+        // printf("Received message!\n");
+        // printf("Size: %d\n", recv_size);
+        // printf("Timestamp: %lu seconds, %lu microseconds\n", recv_tv_sec, recv_tv_usec);
+        // printf("Data Received: %s\n", buf + 18);
 
-        // Ensure the data size is consistent with what was received
-        if (recv_size > total_size - 18) {
-            printf("Error: Data size too big\n");
-            free(buf);
-            exit(1);
+        FILE *fp = fopen("RoundTripTime.txt", "ab");
+        if (fp == NULL)
+        {
+            perror("Error opening file");
+            return 1;
         }
 
-        printf("Completed %d message exchanges with %s:%d\n", count, hostname, port);
-        printf("\n");
+        total_time += (recv_tv_sec - tv.tv_sec) * 1000000 + (recv_tv_usec - tv.tv_usec);
+        fprintf(fp, "%lu, %lu\n", tv.tv_sec, tv.tv_usec);
+        fprintf(fp, "%lu, %lu\n", recv_tv_sec, recv_tv_usec);
+
+        fclose(fp);
         free(buf);
     }
 
+    printf("Completed %d message exchanges with %s:%d\n", count, hostname, port);
+    printf("Average time: %d\n", total_time / count);
+    printf("\n");
     return 0;
 }
