@@ -1,6 +1,11 @@
 # Ping-Pong Client/Server
 
-## Run this project
-To run this project, you have to run ''make'' 
+Group Members: Fulin Jiang, Pengyu Chen, Yu-Chu Hsiao, Ziye Zhang
 
-## Measurement 
+## Run this project
+
+To run this project, you have to run ''make''
+
+## Measurement
+
+See part2.pdf
