@@ -3,27 +3,31 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-int main() {
+int main()
+{
     int i;
     pid_t pid;
 
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < 10; i++)
+    {
         pid = fork();
 
-        if (pid < 0) {
+        if (pid < 0)
+        {
             // Fork failed
             perror("Fork failed");
             exit(EXIT_FAILURE);
         }
 
-        if (pid == 0) {
+        if (pid == 0)
+        {
 
             printf("Child process %d executing: \n", i + 1);
 
+            int status = system("./client borax 18111 50000 10000");
 
-            int status = system("./client cobalt 18100 5000 1000");
-
-            if (status == -1) {
+            if (status == -1)
+            {
                 perror("system() call failed");
             }
 
@@ -34,8 +38,9 @@ int main() {
     }
 
     // Parent process waits for all child processes to complete
-    for (i = 0; i < 10; i++) {
-        wait(NULL);  // Wait for each child to finish
+    for (i = 0; i < 10; i++)
+    {
+        wait(NULL); // Wait for each child to finish
     }
 
     printf("All child processes finished.\n");

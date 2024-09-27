@@ -392,17 +392,16 @@ int main(int argc, char **argv)
                             {
                                 printf("Received whole message!\n");
                                 write(fd, buf, size + 18);
-
-                                // record receive time
-                                FILE *fp = fopen("Delay.txt", "ab");
-                                fprintf(fp, "%lu, %lu\n", recv_time.tv_sec, recv_time.tv_usec);
-                                // and client send time
-                                // recv_time - client_send_time = 2 * transmission delay + transmission independent delay
-                                fprintf(fp, "%lu, %lu\n", tv_sec, tv_usec);
-                                fprintf(fp, "%hu\n", count);
-                                fclose(fp);
                             }
                             current->pending_data_out = size + 18;
+                            // record receive time
+                            FILE *fp = fopen("Delay.txt", "ab");
+                            fprintf(fp, "%lu, %lu\n", recv_time.tv_sec, recv_time.tv_usec);
+                            // and client send time
+                            // recv_time - client_send_time = 2 * transmission delay + transmission independent delay
+                            fprintf(fp, "%lu, %lu\n", tv_sec, tv_usec);
+                            fprintf(fp, "%hu\n", count);
+                            fclose(fp);
 
                             printf("Count: %d, Data Size: %d, pending_data: %d\n", count, size, current->pending_data_in);
                             printf("Timestamp: %lu seconds, %lu microseconds\n", tv_sec, tv_usec);

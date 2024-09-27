@@ -5,13 +5,16 @@ CFLAGS	 	= -Wall -g
 LDFLAGS	 	= 
 DEFS 	 	=
 
-all:	server client
+all:	server client concurrent
 
-server_num: server.c
+server: server.c
 	$(CC) $(DEFS) $(CFLAGS) $(LIB) -o server server.c
 
-client_num: client.c
+client: client.c
 	$(CC) $(DEFS) $(CFLAGS) $(LIB) -o client client.c
+
+concurrent: concurrent.c
+	$(CC) $(DEFS) $(CFLAGS) $(LIB) -o concurrent concurrent.c
 
 clean:
 	rm -f *.o
@@ -19,4 +22,5 @@ clean:
 	rm -f core.*
 	rm -f server
 	rm -f client
+	rm -f concurrent
 	rm -f Delay.txt
